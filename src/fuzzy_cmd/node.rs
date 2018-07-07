@@ -17,12 +17,26 @@ pub enum Next {
 
 impl Node {
     /// Create a new Node.
-    /// The new node contains nothing but an empty set of subnodes.
+    /// The new node contains nothing but an function to panic when called.
+    /// You should probably add more nodes, or add a real function using [call](Node::call).
     pub fn new() -> Self {
         Default::default()
     }
     /// Append a command to this map.
-    /// Returns the new [Node] for easy chaining.
+    /// Returns the new Node for easy chaining.
+    /// # Example
+    /// ```
+    /// use fuzzy_cmd::Node;
+    ///
+    /// let mut n = Node::new();
+    /// n.add("test").add("all");
+    /// n.add("make").add("some");
+    /// // Results in:
+    /// // ┌> test -> all -> panic
+    /// // n
+    /// // └> make -> some -> panic
+    /// // See the call function to handle the panic
+    /// ```
     pub fn add(&mut self, cmd: &str) -> &mut Node {
         let cmd = cmd.to_string();
         let el = (cmd, Box::new(Node::new()));
@@ -45,6 +59,7 @@ impl Node {
     /// # Example
     /// ```
     /// use fuzzy_cmd::Node;
+    ///
     /// let mut node = Node::new();
     /// node.call(|| {
     ///    println!("I was called!");
