@@ -1,0 +1,6 @@
+[package]
+name = "fuzzy-cmd"
+version = "0.0.0"
+authors = ["Malte Tammena <malte.tammena@gmx.de>"]
+
+[dependencies]
