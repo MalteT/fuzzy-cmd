@@ -69,10 +69,11 @@ impl Node {
         self.next = Next::Fn(Box::from(f));
     }
     /// Calls this node's function if it has one.
-    /// If not it calls
-    ///
-    /// # TODO: Respect fuzzy!
-    pub fn exec<'a>(&mut self, cmd: &'a [String], match_fuzzy: bool) -> Result<(), ExecutionError> {
+    /// If not it calls at most one subnodes exec method.
+    /// Which subnode that is is determined by the first element of `cmd`.
+    /// - If `match_fuzzy` is `true`, the next command must be prefix of the subnode's command.
+    /// **TODO:** Respect single match / multi match!
+    pub(crate) fn exec<'a>(&mut self, cmd: &'a [String], match_fuzzy: bool) -> Result<(), ExecutionError> {
         match self.next {
             Next::Fn(ref mut f) => Ok(f()),
             Next::Sub(ref mut subs) => {
