@@ -1,3 +1,4 @@
+use super::RefNode;
 use fuzzy_cmd::ExecutionError;
 
 /// A command node.
@@ -5,27 +6,24 @@ use fuzzy_cmd::ExecutionError;
 ///
 /// See [FuzzyCmd](::fuzzy_cmd::FuzzyCmd) for more usage examples!
 pub struct Node {
-    next: Next,
-}
-
-/// The next enum.
-/// Either a function to execute or a subnode to dive into.
-pub enum Next {
-    Fn(Box<FnMut()>),
-    Sub(Vec<(String, Box<Node>)>),
+    function: Box<FnMut()>,
+    sub: Vec<(String, Box<Node>)>,
 }
 
 impl Node {
     /// Create a new Node.
     /// The new node contains nothing but an function to panic when called.
     /// You should probably add more nodes, or add a real function using [call](Node::call).
-    pub fn new() -> Self {
-        Default::default()
+    pub(crate) fn new() -> Self {
+        Node {
+            function: Box::new(no_function_supplied),
+            sub: Vec::new(),
+        }
     }
     /// Append a command to this map.
     /// Returns the new Node for easy chaining.
     /// # Example
-    /// ```
+    /// ```wont_compile
     /// use fuzzy_cmd::Node;
     ///
     /// let mut n = Node::new();
@@ -37,28 +35,17 @@ impl Node {
     /// // └> make -> some -> panic
     /// // See the call function to handle the panic
     /// ```
-    pub fn add(&mut self, cmd: &str) -> &mut Node {
+    pub fn add(&mut self, cmd: &str) -> RefNode {
         let cmd = cmd.to_string();
         let el = (cmd, Box::new(Node::new()));
-        match self.next {
-            Next::Fn(_) => {
-                self.next = Next::Sub(vec![el]);
-            }
-            Next::Sub(ref mut v) => {
-                v.push(el);
-            }
-        };
-        if let Next::Sub(ref mut v) = self.next {
-            let len = v.len();
-            &mut v[len - 1].1
-        } else {
-            panic!("Bug!")
-        }
+        self.sub.push(el);
+        let len = self.sub.len();
+        RefNode::from(&mut self.sub[len - 1].1 as &mut Node)
     }
     /// Set this node's function.
     /// # Example
-    /// ```
-    /// use fuzzy_cmd::Node;
+    /// ```wont_compile
+    /// //use fuzzy_cmd::refnode::node::Node;
     ///
     /// let mut node = Node::new();
     /// node.call(|| {
@@ -66,47 +53,67 @@ impl Node {
     /// })
     /// ```
     pub fn call<F: FnMut() + 'static>(&mut self, f: F) {
-        self.next = Next::Fn(Box::from(f));
+        self.function = Box::from(f);
     }
     /// Calls this node's function if it has one.
     /// If not it calls at most one subnodes exec method.
     /// Which subnode that is is determined by the first element of `cmd`.
     /// - If `match_fuzzy` is `true`, the next command must be prefix of the subnode's command.
     /// **TODO:** Respect single match / multi match!
-    pub(crate) fn exec<'a>(&mut self, cmd: &'a [String], match_fuzzy: bool) -> Result<(), ExecutionError> {
-        match self.next {
-            Next::Fn(ref mut f) => Ok(f()),
-            Next::Sub(ref mut subs) => {
-                let mut sub_to_call = None;
-                for (s, sub) in subs {
-                    if match_fuzzy && s.starts_with(&cmd[0])
-                        || !match_fuzzy && s.eq_ignore_ascii_case(&cmd[0])
-                    {
-                        match sub_to_call {
-                            None => sub_to_call = Some(sub),
-                            Some(_) => return Err(ExecutionError::new(cmd)),
-                        }
-                    }
-                }
-                match sub_to_call {
-                    Some(sub) => sub.exec(&cmd[1..], match_fuzzy),
-                    None => {
-                        return Err(ExecutionError::new(cmd));
+    pub(crate) fn exec<'a>(
+        &mut self,
+        cmd: &'a [String],
+        match_fuzzy: bool,
+    ) -> Result<(), ExecutionError> {
+        println!("{:?}", cmd);
+        if cmd.len() == 0 {
+            Ok((self.function)())
+        } else {
+            let mut sub_to_call = None;
+            for (s, sub) in &mut self.sub {
+                if match_fuzzy && s.starts_with(&cmd[0])
+                    || !match_fuzzy && s.eq_ignore_ascii_case(&cmd[0])
+                {
+                    match sub_to_call {
+                        None => sub_to_call = Some(sub),
+                        Some(_) => return Err(ExecutionError::new(cmd)),
                     }
                 }
             }
+            match sub_to_call {
+                Some(sub) => sub.exec(&cmd[1..], match_fuzzy),
+                None => Err(ExecutionError::new(cmd)),
+            }
         }
+        // match self.next {
+        //     Next::Fn(ref mut f) => Ok(f()),
+        //     Next::Sub(ref mut subs) => {
+        //         let mut sub_to_call = None;
+        //         for (s, sub) in subs {
+        //             if match_fuzzy && s.starts_with(&cmd[0])
+        //                 || !match_fuzzy && s.eq_ignore_ascii_case(&cmd[0])
+        //             {
+        //                 match sub_to_call {
+        //                     None => sub_to_call = Some(sub),
+        //                     Some(_) => return Err(ExecutionError::new(cmd)),
+        //                 }
+        //             }
+        //         }
+        //         match sub_to_call {
+        //             Some(sub) => sub.exec(&cmd[1..], match_fuzzy),
+        //             None => {
+        //                 return Err(ExecutionError::new(cmd));
+        //             }
+        //         }
+        //     }
+        // }
     }
 }
 
-impl Default for Node {
-    fn default() -> Self {
-        Node {
-            next: Next::Fn(Box::new(|| {
-                panic!("This node is empty. This is probably not what you want!");
-            })),
-        }
-    }
+/// This function serves as default for new Nodes.
+/// Simply panics on invocation with an information message.
+fn no_function_supplied() {
+    panic!("This node was not supplied with a function. This is probably not what you want!");
 }
 
 #[cfg(test)]
@@ -143,7 +150,7 @@ mod tests {
         let (send, recv) = channel::<&str>();
         let mut n = Node::new();
         {
-            let test = n.add("test");
+            let mut test = n.add("test");
             let s = send.clone();
             test.add("all").call(move || {
                 s.send("test all").unwrap();
@@ -160,7 +167,7 @@ mod tests {
             });
         }
         {
-            let help = n.add("help");
+            let mut help = n.add("help");
             let s = send.clone();
             help.add("all").call(move || {
                 s.send("help all").unwrap();
@@ -197,17 +204,19 @@ mod tests {
     fn fuzzy() {
         let mut n = Node::new();
         {
-            let test = n.add("test");
+            let mut test = n.add("test");
             test.add("all").call(move || {});
             test.add("docs").call(move || {});
             test.add("nothing").call(move || {});
         }
         {
-            let help = n.add("help");
+            let mut help = n.add("help");
             help.add("all").call(move || {});
             help.add("something").call(move || {});
         }
-        n.exec(&[String::from("te"), String::from("a")], false).unwrap();
-        n.exec(&[String::from("help"), String::from("some")], false).unwrap();
+        n.exec(&[String::from("te"), String::from("a")], false)
+            .unwrap();
+        n.exec(&[String::from("help"), String::from("some")], false)
+            .unwrap();
     }
 }

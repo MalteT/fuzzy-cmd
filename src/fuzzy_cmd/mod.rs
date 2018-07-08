@@ -1,8 +1,9 @@
 mod execution_error;
-mod node;
+pub mod refnode;
 
 pub use self::execution_error::ExecutionError;
-pub use self::node::Node;
+pub use self::refnode::node::Node;
+pub use self::refnode::RefNode;
 
 pub struct FuzzyCmd {
     fuzzy: bool,
@@ -54,7 +55,10 @@ impl FuzzyCmd {
     }
     /// Execute a command.
     pub fn exec(&mut self, cmd: &str) -> Result<(), ExecutionError> {
-        let cmds: Vec<String> = cmd.split(&self.seperator).map(|s| s.to_string()).collect();
+        let cmds: Vec<String> = cmd.split(&self.seperator)
+            .map(|s| s.to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
         self.tree.exec(&cmds, self.fuzzy)
     }
     /// Add a command to the root.
@@ -69,7 +73,7 @@ impl FuzzyCmd {
     /// fuzz.add("yac");
     /// fuzz.add("Done_here!");
     /// ```
-    pub fn add(&mut self, cmd: &str) -> &mut Node {
+    pub fn add(&mut self, cmd: &str) -> RefNode {
         self.tree.add(cmd)
     }
 }
