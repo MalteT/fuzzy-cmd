@@ -6,18 +6,19 @@ use std::iter::FromIterator;
 
 fn main() {
     let mut fuzz = FuzzyCmd::new().enable_fuzzy();
-
     {
-        let help = fuzz.add("help");
+        let mut help = fuzz.add("help");
         help.add("all").call(|| println!("Easy help should be part of this crate.."));
+        help.call(|| println!("Usage: help all"));
     }
-
     {
-        let n_bake = fuzz.add("bake");
+        let mut n_bake = fuzz.add("bake");
         n_bake.add("cake").call(|| bake("cake"));
         n_bake.add("oven").call(|| bake("oven"));
         n_bake.add("pizza").call(|| bake("pizza"));
+        n_bake.call(|| println!("Usage: bake (cake|oven|pizza)"));
     }
+
     let mut args = args();
     args.next();
     let cmd = String::from_iter(args.map(|mut s| {
