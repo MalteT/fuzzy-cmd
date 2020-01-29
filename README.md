@@ -1,5 +1,7 @@
 
-# fuzzy-cmd
+# [WIP] fuzzy-cmd
+
+**Note**: Do not use this. This was only for learning purposes. I'm sure someone created something more dedicated.
 
 Easily implement fuzzy command execution à la netctl's ip command. Specify a simple command sequence and a function to be executed and let the library handle shortcuts by matching against prefixes.
 
